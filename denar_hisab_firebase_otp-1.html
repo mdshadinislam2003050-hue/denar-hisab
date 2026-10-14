@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>সহজ দেনার হিসাব</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f1f6f3;color:#20342b;font-family:system-ui,-apple-system,"Noto Sans Bengali",sans-serif}
+header{background:#087f5b;color:white;text-align:center;padding:18px 12px}h1{font-size:23px;margin:0}header p{margin:4px 0 0;font-size:13px}
+main{max-width:600px;margin:12px auto;padding:0 10px 25px}.card{background:#fff;border-radius:13px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px #0000000c}
+.stats{display:flex;gap:8px}.stat{flex:1;background:#e5f5ed;padding:12px;border-radius:10px;min-width:0}.stat small{display:block;font-size:13px}.stat strong{display:block;font-size:18px;overflow-wrap:anywhere}
+h2{font-size:18px;margin:0 0 10px}label{display:block;font-size:14px;font-weight:650;margin:10px 0 4px}
+input{width:100%;padding:11px;border:1px solid #ccd8d1;border-radius:9px;font:inherit}
+button{font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 12px;cursor:pointer}
+.add{background:#087f5b;color:white;width:100%;margin-top:13px}.cancel{background:#edf1ef;width:100%;margin-top:7px}
+.item{background:#fff;border:1px solid #dce8e0;border-radius:10px;padding:12px;margin-top:9px}.item.has-balance{background:#fff4cf;border:2px solid #e0a400}.item.has-balance .left{background:#ffdf70;color:#7a3000;padding:5px 8px;border-radius:8px}.item.settled{background:#e7f7ed;border-color:#8ac9a2}.row{display:flex;justify-content:space-between;gap:8px}.name{font-size:17px;font-weight:750}.left{font-weight:800;color:#c92a2a;white-space:nowrap}.meta{font-size:14px;color:#52665e;line-height:1.65;overflow-wrap:anywhere;margin-top:5px}
+.actions{display:flex;gap:7px;margin-top:9px}.edit{background:#e7f1ff;color:#174ea6}.del{background:#fff0f0;color:#c92a2a}
+#search{margin-bottom:7px}.empty{text-align:center;color:#78857e;padding:18px 5px}.hint{font-size:12px;color:#66766f;line-height:1.5}
+@media(max-width:360px){.stats{flex-direction:column}.row{flex-direction:column}.left{white-space:normal}}
+</style>
+</head>
+<body>
+<section id="authCard" class="card" style="max-width:600px;margin:18px auto;padding:18px">
+<h2>🔐 ফোন নম্বর দিয়ে লগইন</h2>
+<p class="hint">লগইন করলে আপনার হিসাব Firebase-এ সেভ হবে এবং অন্য ফোন/কম্পিউটার থেকেও দেখা যাবে।</p>
+<label>বাংলাদেশি ফোন নম্বর</label><input id="phoneNumber" type="tel" inputmode="tel" placeholder="+8801XXXXXXXXX" autocomplete="tel">
+<button type="button" id="sendOtp" class="add">OTP কোড পাঠান</button>
+<div id="otpArea" style="display:none">
+<label>SMS-এ পাওয়া OTP কোড</label><input id="otpCode" inputmode="numeric" autocomplete="one-time-code" placeholder="৬ সংখ্যার কোড">
+<button type="button" id="verifyOtp" class="add">লগইন করুন</button>
+</div>
+<div id="recaptcha-container" style="margin-top:10px"></div>
+<p id="authMessage" class="hint" role="status"></p>
+</section>
+<div id="appArea" style="display:none">
+<header><h1>📒 দেনার হিসাব</h1><p>আজকের পরিশোধ, আগামীর স্বস্তি 🌱</p></header>
+<main>
+<section class="card">
+<div class="stats">
+<div class="stat"><small>মোট বাকি</small><strong id="grand">৳০</strong></div>
+<div class="stat"><small>মানুষের সংখ্যা</small><strong id="count">০ জন</strong></div>
+</div>
+</section>
+<section class="card">
+<h2 id="title">➕ নতুন হিসাব</h2>
+<button type="button" id="toggleForm" class="cancel" style="margin:0 0 8px">➖ ফর্ম লুকান</button>
+<form id="form">
+<input type="hidden" id="id">
+<label>নাম *</label><input id="name" required placeholder="ব্যক্তির নাম">
+<label>বিকাশ নম্বর</label><input id="bkash" inputmode="tel" placeholder="বিকাশ নম্বর (না থাকলে ফাঁকা রাখুন)">
+<label>নগদ নম্বর</label><input id="nagad" inputmode="tel" placeholder="নগদ নম্বর (না থাকলে ফাঁকা রাখুন)">
+<label>মোট টাকা *</label><input id="amount" type="number" min="0.01" step="0.01" required inputmode="decimal" placeholder="কত টাকা দিতে হবে">
+<label>দিয়েছেন কত টাকা?</label><input id="paid" type="number" min="0" step="0.01" value="0" inputmode="decimal" placeholder="না দিলে ০ রাখুন">
+<button class="add" id="save" type="submit">সংরক্ষণ করুন</button>
+<button class="cancel" id="cancel" type="button" hidden>বাতিল</button>
+</form>
+</section>
+<section class="card">
+<h2>📋 হিসাবের তালিকা</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+  <button type="button" id="exportBackup" style="background:#087f5b;color:white;flex:1">⬇️ ব্যাকআপ সেভ</button>
+  <button type="button" id="importBackup" style="background:#e7f1ff;color:#174ea6;flex:1">⬆️ ব্যাকআপ ফিরিয়ে আনুন</button>
+  <input type="file" id="backupFile" accept=".json,application/json" style="display:none">
+</div>
+<p class="hint">মাসের পর মাস হিসাব রাখতে মাঝে মাঝে “ব্যাকআপ সেভ” চাপুন। ব্রাউজারের ডেটা মুছে গেলেও ব্যাকআপ ফাইল থেকে ফিরিয়ে আনতে পারবেন।</p>
+<input id="search" placeholder="নাম বা নম্বর খুঁজুন">
+<div id="list"></div>
+<button type="button" id="toggleList" class="cancel">📋 তালিকা লুকান</button>
+<p class="hint">হিসাব আপনার লগইন করা অ্যাকাউন্টের Firebase ক্লাউডে সেভ হবে। নিরাপত্তার জন্য নিজের ফোন নম্বর দিয়ে লগইন করুন।</p>
+</section>
+</main>
+<div style="max-width:600px;margin:0 auto 24px;padding:0 10px"><button type="button" id="logoutBtn" class="cancel">লগআউট</button></div>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+(()=> {
+const firebaseConfig = {
+  apiKey: "AIzaSyAD7X_gLZa1dh7ocxXz62Fnlp-VDAd38X0",
+  authDomain: "paonadarer-hisab.firebaseapp.com",
+  projectId: "paonadarer-hisab",
+  storageBucket: "paonadarer-hisab.firebasestorage.app",
+  messagingSenderId: "232164560649",
+  appId: "1:232164560649:web:b16d6c28ec94a32b01cdd8",
+  measurementId: "G-5P1XBW6Z21"
+};
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth(), db=firebase.firestore();
+const KEY='simple_debt_bn_v1', $=id=>document.getElementById(id);
+let data=[], currentUser=null, confirmationResult=null, syncing=false;
+try{data=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(data))data=[]}catch{data=[]}
+const cash=n=>'৳'+Number(n||0).toLocaleString('en-BD',{maximumFractionDigits:2});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const balance=x=>Number(x.amount)-Number(x.paid||0);
+function message(t){$('authMessage').textContent=t}
+function render(){ $('grand').textContent=cash(data.reduce((s,x)=>s+balance(x),0));$('count').textContent=data.length+' জন';
+let q=$('search').value.trim().toLowerCase(),items=data.filter(x=>(x.name+' '+x.bkash+' '+x.nagad).toLowerCase().includes(q));
+$('list').innerHTML=items.length?items.map(x=>`<div class="item ${balance(x)>0?'has-balance':'settled'}"><div class="row"><div class="name">${esc(x.name)}</div><div class="left">বাকি ${cash(balance(x))}</div></div><div class="meta">বিকাশ: ${esc(x.bkash||'নেই')}<br>নগদ: ${esc(x.nagad||'নেই')}<br>মোট: ${cash(x.amount)} · দিয়েছেন: ${cash(x.paid||0)}</div><div class="actions"><button class="edit" data-edit="${esc(x.id)}">এডিট</button><button class="del" data-del="${esc(x.id)}">মুছুন</button></div></div>`).join(''):'<div class="empty">কোনো হিসাব নেই। উপরের ফর্মে যোগ করুন।</div>';
+$('list').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{let x=data.find(a=>a.id===b.dataset.edit);if(!x)return;for(let k of ['id','name','bkash','nagad','amount','paid'])$(k).value=x[k]??'';$('title').textContent='✏️ হিসাব পরিবর্তন';$('save').textContent='পরিবর্তন সংরক্ষণ';$('cancel').hidden=false;window.scrollTo({top:0,behavior:'smooth'})});
+$('list').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{let x=data.find(a=>a.id===b.dataset.del);if(x&&confirm(x.name+' এর হিসাব মুছবেন?')){data=data.filter(a=>a.id!==x.id);await store();if($('id').value===x.id)reset()}});
+}
+async function store(){localStorage.setItem(KEY,JSON.stringify(data));render();if(currentUser&&!syncing){try{await db.collection('users').doc(currentUser.uid).collection('private').doc('debtData').set({debts:data,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});message('');}catch(e){console.error(e);alert('ফোনে সেভ হয়েছে, কিন্তু ক্লাউডে সেভ হয়নি। Firebase Firestore Rules পরীক্ষা করুন।')}}}
+async function loadCloud(user){
+ syncing=true;
+ try{
+  const ref=db.collection('users').doc(user.uid).collection('private').doc('debtData');
+  const snap=await ref.get();
+  if(snap.exists&&Array.isArray(snap.data().debts)){data=snap.data().debts;localStorage.setItem(KEY,JSON.stringify(data));}
+  else { // প্রথম লগইন: এই ব্রাউজারে থাকা পুরোনো হিসাব ক্লাউডে কপি করুন
+   await ref.set({debts:data,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  }
+  render();
+ }catch(e){console.error(e);alert('ক্লাউড থেকে হিসাব আনা যায়নি। Firebase Firestore Rules সেট করা আছে কি না দেখুন।');}
+ finally{syncing=false;}
+}
+function reset(){$('form').reset();$('id').value='';$('paid').value='0';$('title').textContent='➕ নতুন হিসাব';$('save').textContent='সংরক্ষণ করুন';$('cancel').hidden=true}
+$('form').onsubmit=async e=>{e.preventDefault();let id=$('id').value,amount=Number($('amount').value),paid=Number($('paid').value||0);if(amount<=0||paid<0){alert('সঠিক টাকার পরিমাণ লিখুন।');return}let x={id:id||Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:$('name').value.trim(),bkash:$('bkash').value.trim(),nagad:$('nagad').value.trim(),amount,paid};if(id)data=data.map(a=>a.id===id?x:a);else data.unshift(x);await store();reset()};
+$('cancel').onclick=reset;$('search').oninput=render;
+$('toggleForm').onclick=()=>{const form=$('form'),hidden=form.style.display==='none';form.style.display=hidden?'block':'none';$('toggleForm').textContent=hidden?'➖ ফর্ম লুকান':'➕ নতুন হিসাব যোগ করুন'};
+$('toggleList').onclick=()=>{const list=$('list'),hidden=list.style.display==='none';list.style.display=hidden?'block':'none';$('toggleList').textContent=hidden?'📋 তালিকা লুকান':'📋 তালিকা দেখান'};
+$('sendOtp').onclick=async()=>{
+ const phone=$('phoneNumber').value.trim();
+ if(!/^\+8801[3-9]\d{8}$/.test(phone)){message('নম্বরটি +8801XXXXXXXXX ফরম্যাটে লিখুন।');return}
+ try{
+  $('sendOtp').disabled=true;message('reCAPTCHA যাচাই হচ্ছে…');
+  if(!window.recaptchaVerifier){window.recaptchaVerifier=new firebase.auth.RecaptchaVerifier('recaptcha-container',{size:'normal',callback:()=>{}});await window.recaptchaVerifier.render();}
+  confirmationResult=await auth.signInWithPhoneNumber(phone,window.recaptchaVerifier);
+  $('otpArea').style.display='block';message('SMS-এ OTP পাঠানো হয়েছে।');
+ }catch(e){console.error(e);message('OTP পাঠানো যায়নি: '+(e.message||e.code));try{if(window.recaptchaVerifier){window.recaptchaVerifier.clear();window.recaptchaVerifier=null;}}catch{} }
+ finally{$('sendOtp').disabled=false}
+};
+$('verifyOtp').onclick=async()=>{const code=$('otpCode').value.trim();if(!confirmationResult||!code){message('SMS-এ পাওয়া OTP কোড লিখুন।');return}try{await confirmationResult.confirm(code);message('লগইন সফল হয়েছে।')}catch(e){message('OTP ভুল বা মেয়াদোত্তীর্ণ। আবার চেষ্টা করুন।')}};
+$('logoutBtn').onclick=()=>auth.signOut();
+auth.onAuthStateChanged(async user=>{
+ currentUser=user;
+ if(user){$('authCard').style.display='none';$('appArea').style.display='block';await loadCloud(user);}
+ else{$('authCard').style.display='block';$('appArea').style.display='none';}
+});
+render();
+})();</script>
+</body>
+</html>
